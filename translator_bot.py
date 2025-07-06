@@ -1,33 +1,30 @@
-from telegram.ext import Updater, MessageHandler, Filters
-import requests
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, ContextTypes, filters
+from deep_translator import GoogleTranslator
+import os
 
-TOKEN = "7770288470:AAFXjj4hkZ3q7vsc8zt7AFHmbpLNA-GAY-4"
+def detect_language(text):
+    # بررسی وجود حروف فارسی
+    for ch in text:
+        if '\u0600' <= ch <= '\u06FF':
+            return 'fa'
+    return 'en'
 
-def detect_lang(text):
-    persian_letters = set("اآبپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی")
-    count = sum(1 for ch in text if ch in persian_letters)
-    return "fa" if count > len(text) / 3 else "en"
-
-def translate(text, source, target):
-    url = "https://libretranslate.de/translate"
-    payload = {"q": text, "source": source, "target": target, "format": "text"}
-    response = requests.post(url, json=payload)
-    return response.json().get("translatedText", "خطا در ترجمه")
-
-def handle_message(update, context):
+async def translate_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
-    lang = detect_lang(text)
-    target = "en" if lang == "fa" else "fa"
-    translated = translate(text, lang, target)
-    update.message.reply_text(translated)
+    lang = detect_language(text)
 
-def main():
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-    print("ربات آماده‌ست...")
-    updater.start_polling()
-    updater.idle()
+    if lang == 'fa':
+        translated = GoogleTranslator(source='auto', target='en').translate(text)
+    else:
+        translated = GoogleTranslator(source='auto', target='fa').translate(text)
 
-if __name__ == "__main__":
-    main()
+    await update.message.reply_text(translated)
+
+if __name__ == '__main__':
+    TOKEN = os.environ["BOT_TOKEN"]  # توکن رو از تنظیمات Render می‌گیره
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, translate_message))
+
+    print("ربات مترجم آماده اجراست...")
+    app.run_polling()
